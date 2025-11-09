@@ -3,6 +3,7 @@ from fastapi import FastAPI
 import rag_main
 from fastapi import Request
 import uvicorn
+import os
 app=FastAPI()
 indexer=QdrantOps()
 
