@@ -6,12 +6,14 @@ import traceback
 from pdf2image import convert_from_bytes
 from docx import Document
 import asyncio
+from dotenv import load_dotenv
 
+load_dotenv()
 class DocPdfImageExtractor:
-    def __init__(self,tesseract_path:str=r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe',pop_path:str=r'C:/Users/Deepak J Bhat/Downloads/Release-24.08.0-0/poppler-24.08.0/Library/bin'):
-        self.tesseract_path=tesseract_path
+    def __init__(self):
+        self.tesseract_path=os.getenv("TESSERACT_PATH")
         self.output_dir="frames"
-        self.pop_path=pop_path
+        self.pop_path=os.getenv("POP_PATH")
 
 
     async def pdf_extraction(self,file_buffer):
