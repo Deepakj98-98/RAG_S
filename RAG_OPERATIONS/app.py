@@ -41,6 +41,19 @@ async def qdrantretrieve(request: Request):
     else:
         "No proper user query received"
 
+@app.post("/videoaudioupload")
+async def videoaudioupload(request:Request):
+    data=await request.json()
+    response=await rag_main.uploads3(data)
+    return response
+
+@app.post("/videoaudioprocess")
+async def videoaudioprocess(request:Request):
+    data=await request.json()
+    response=await rag_main.process_videoaudio(data)
+    return response
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
     

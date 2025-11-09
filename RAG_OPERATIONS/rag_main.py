@@ -1,5 +1,7 @@
 
 import os
+import uuid
+from videoaudio_text import WhisperTranscriptGeneration
 from pdfdocxtxt_extraction import DocPdfImageExtractor
 from dbops import MongoDbTrial
 from indexing_and_retreival import QdrantOps
@@ -88,6 +90,36 @@ async def retrieveqdrant(user_query):
     qdrant_retrieve=QdrantOps()
     response=await qdrant_retrieve.retreival_qdrant(user_query=user_query)
     return response
+
+async def uploads3(request):
+    try:
+        filepath=request.get("filepath")
+        file_id=str(uuid.uuid4())
+        filename=os.path.basename(filepath)
+        extension=filename.split(".")[-1]
+        s3_key=f"{file_id}.{extension}"
+        videoaudiotext_extraction=WhisperTranscriptGeneration()
+        await videoaudiotext_extraction.upload_to_s3(filepath=filepath,s3_key=s3_key)
+        await videoaudiotext_extraction.save_metadata_dynamodb(file_id=file_id,file_name=filename,s3_key=s3_key,status="uploaded")
+        return {"file":filename,"s3_key":s3_key,"file_id":file_id}
+    except Exception as e:
+        print("Exception occurred in s3 upload",traceback.format_exc())
+        raise e
+
+async def process_videoaudio(request):
+    try:
+        s3_key=request.get("s3_key")
+        file_id=request.get("file_id")
+        videoaudiotext_extraction=WhisperTranscriptGeneration()
+        transcript_dict=await videoaudiotext_extraction.process_s3_file(s3_key=s3_key)
+        update_dict={"s3_transcript_key":transcript_dict["s3_transcript_key"],"status":"processed"}
+        await videoaudiotext_extraction.update_dynamodb_metadata(file_id=file_id,update_data=update_dict)
+        return transcript_dict
+    except Exception as e:
+        print("Exception occurred in s3 process",traceback.format_exc())
+        raise e
+
+
 
 
 
