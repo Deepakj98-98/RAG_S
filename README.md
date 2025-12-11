@@ -15,6 +15,8 @@ Miniconda – for environment management
 
 Docker Desktop – for running Redis
 
+Pytesseract, poppler
+
 MongoDB (Local Installation)
  - MongoDB Compass (GUI client)- Select this checkbox while installation
 
