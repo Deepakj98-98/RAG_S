@@ -8,12 +8,14 @@ from indexing_and_retreival import QdrantOps
 import asyncio
 import traceback
 from io import BytesIO
+import aiohttp
+
 async def dbsave(request):
     try:
         mongodbtrail=MongoDbTrial()
         file_paths=request.get("filepaths")
-        mongodbtrail.save_file(file_paths)
-        return {"status":"success"}
+        result=mongodbtrail.save_file(file_paths)
+        return {"uploaded":result,"status":"success"}
     except Exception as e:
         print("Exception occurred in dbsave",traceback.format_exc())
         raise e
@@ -42,7 +44,7 @@ async def extract_and_chunk(request):
                     text=await extractor.doc_extraction(file_buffer=file_buffer)
                 elif file.endswith(".pdf"):
                     text=await extractor.pdf_extraction(file_buffer=file_buffer)
-                elif file.endswith(".img") or file.endswith(".png") or file.endswith(".jpeg"):
+                elif file.endswith(".img") or file.endswith(".png") or file.endswith(".jpeg") or file.endswith(".jpg"):
                     text=await extractor.image_text_extraction(file_buffer=file_buffer)
                 mongodbtrail.store_extracted_text(
                     {
@@ -108,18 +110,31 @@ async def uploads3(request):
 
 async def process_videoaudio(request):
     try:
+        
         s3_key=request.get("s3_key")
         file_id=request.get("file_id")
         videoaudiotext_extraction=WhisperTranscriptGeneration()
         transcript_dict=await videoaudiotext_extraction.process_s3_file(s3_key=s3_key)
         update_dict={"s3_transcript_key":transcript_dict["s3_transcript_key"],"status":"processed"}
         await videoaudiotext_extraction.update_dynamodb_metadata(file_id=file_id,update_data=update_dict)
+        indexer=QdrantOps()
+        await indexer.indexing(transcript_dict["transcript"])
         return transcript_dict
     except Exception as e:
         print("Exception occurred in s3 process",traceback.format_exc())
         raise e
 
-
+async def query_ollama(model, prompt):
+    url="http://localhost:11434/api/chat"
+    payload = {
+    "model": model,
+    "messages": [{"role": "user", "content": prompt}],
+    "stream": False
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url,json=payload) as response:
+                data=await response.json()
+                return data["message"]["content"].strip()
 
 
 

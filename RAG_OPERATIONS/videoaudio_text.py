@@ -74,7 +74,7 @@ class WhisperTranscriptGeneration:
                 tmp_path=tmp.name
             await self.upload_to_s3(tmp_path,s3_key=s3_transcript_key)
             print("transcript complete")
-            return {"s3_transcript_key":s3_transcript_key}
+            return {"s3_transcript_key":s3_transcript_key,"transcript":transcript}
         except Exception as e:
             print("Exception occurred in s3 process",traceback.format_exc())
             raise e

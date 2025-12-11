@@ -7,6 +7,7 @@ from pdf2image import convert_from_bytes
 from docx import Document
 import asyncio
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 class DocPdfImageExtractor:
