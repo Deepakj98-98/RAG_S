@@ -31,6 +31,8 @@ Ensure your requirements.txt is present at the project root.
 
 pip install -r requirements.txt
 
+Install redis checkpoint for langgraph- pip install -U langgraph-checkpoint-redis
+
 ### Step 3 — Start Redis (Required for LangGraph Checkpointing)
 
 Run the Redis Stack container:
