@@ -8,7 +8,7 @@ from indexing_and_retreival import QdrantOps
 import asyncio
 import traceback
 from io import BytesIO
-import aiohttp
+
 
 async def dbsave(request):
     try:
@@ -88,10 +88,7 @@ async def extract_and_chunk(request):
         print("Exception occurred in extarction/chunking",traceback.format_exc())
         raise e
 
-async def retrieveqdrant(user_query):
-    qdrant_retrieve=QdrantOps()
-    response=await qdrant_retrieve.retreival_qdrant(user_query=user_query)
-    return response
+
 
 async def uploads3(request):
     try:
@@ -124,17 +121,7 @@ async def process_videoaudio(request):
         print("Exception occurred in s3 process",traceback.format_exc())
         raise e
 
-async def query_ollama(model, prompt):
-    url="http://localhost:11434/api/chat"
-    payload = {
-    "model": model,
-    "messages": [{"role": "user", "content": prompt}],
-    "stream": False
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url,json=payload) as response:
-                data=await response.json()
-                return data["message"]["content"].strip()
+
 
 
 

@@ -14,7 +14,8 @@ from typing import TypedDict, List, Dict, Optional
 #from langgraph.checkpoint.redis import RedisSaver 
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.store.redis.aio import AsyncRedisStore
-
+from indexing_and_retreival import QdrantOps
+import aiohttp
 
 REDIS_URI = "redis://localhost:6379"
 
@@ -77,6 +78,7 @@ async def process_agent(state:RAGState,*,store):
         ]
     }
 
+
 def make_config(user_id: str, session_id: str | None = None):
     if session_id is None:
         session_id = str(uuid.uuid4())
@@ -87,6 +89,76 @@ def make_config(user_id: str, session_id: str | None = None):
             "thread_id": f"{user_id}-{session_id}"
         }
     }
+
+async def query_ollama(model, prompt):
+    url="http://localhost:11434/api/chat"
+    payload = {
+    "model": model,
+    "messages": [{"role": "user", "content": prompt}],
+    "stream": False
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url,json=payload) as response:
+                data=await response.json()
+                return data["message"]["content"].strip()
+      
+
+async def retrieveqdrant(user_query):
+    qdrant_retrieve=QdrantOps()
+    response=await qdrant_retrieve.retreival_qdrant(user_query=user_query)
+    return response
+
+
+async def answer_agent(state: RAGState, *, store):
+
+    docs = state["retrieved_docs"]
+    question = state["question"]
+
+    prompt = f"""
+    Answer the question using the context below.
+    Context:
+    {docs}
+
+    Question:
+    {question}
+    """
+
+    response = await query_ollama("mistral",prompt=prompt)
+
+    return {
+        "answer": response.content,
+        "history": state.get("history", []) + [
+            {"role": "assistant", "content": response.content}
+        ]
+    }
+
+
+async def retrieve_agent(state: RAGState, *, store):
+    user_query = state["question"]
+    user_id = state["user_id"]
+
+    # Call Qdrant
+    response = await retrieveqdrant(user_query)
+
+    # Persist retrieved results
+    await store.aput(
+        ("qdrant_retrieval", user_id),
+        "latest",
+        {
+            "query": user_query,
+            "results": response
+        }
+    )
+
+    return {
+        "retrieved_docs": response,
+        "history": state.get("history", []) + [
+            {"role": "system", "content": "Documents retrieved from Qdrant"}
+        ]
+    }
+
+
+
 async def rag_process(request,user_id,session_id:Optional[str]=None):
     filepath=request.get("filepath")
     async with (
@@ -117,6 +189,36 @@ async def rag_process(request,user_id,session_id:Optional[str]=None):
     )
         return result
         
+async def qa_process(request, user_id, session_id: Optional[str] = None):
+    question = request.get("question")
+    async with (
+        AsyncRedisStore.from_conn_string(REDIS_URI) as store,
+        AsyncRedisSaver.from_conn_string(REDIS_URI) as checkpointer,
+    ):
+        qa_graph=StateGraph(RAGState)
+        qa_graph.add_node("retrieve",retrieve_agent)
+        qa_graph.add_node("answer",answer_agent)
+        qa_graph.add_edge(START, "retrieve")
+        qa_graph.add_edge("retrieve", "answer")
+        qa_graph.add_edge("answer", END)
+
+        graph = qa_graph.compile(
+            checkpointer=checkpointer,
+            store=store
+        )
+
+        config = make_config(user_id=user_id, session_id=session_id)
+
+        result = await graph.ainvoke(
+            {
+                "question": question,
+                "user_id": user_id,
+                "history": []
+            },
+            config
+        )
+
+        return result
 
     
 # event_loop_thread.py  (or at top of workflow_graph.py)
