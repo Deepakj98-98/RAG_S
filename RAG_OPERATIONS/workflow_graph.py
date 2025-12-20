@@ -30,6 +30,8 @@ class RAGState(TypedDict,total=False):
     transcript:Optional[str]
     question:Optional[str]
     answer:Optional[str]
+    retrieved_docs:Optional[str]
+
 
 #DB_URI = "postgresql://postgres:deepak123@localhost:5432/langgraph_db?sslmode=disable"
 
@@ -100,6 +102,7 @@ async def query_ollama(model, prompt):
     async with aiohttp.ClientSession() as session:
         async with session.post(url,json=payload) as response:
                 data=await response.json()
+                print(f"model response {data}")
                 return data["message"]["content"].strip()
       
 
@@ -123,12 +126,12 @@ async def answer_agent(state: RAGState, *, store):
     {question}
     """
 
-    response = await query_ollama("mistral",prompt=prompt)
+    response = await query_ollama("gemma3:1b",prompt=prompt)
 
     return {
-        "answer": response.content,
+        "answer": response,
         "history": state.get("history", []) + [
-            {"role": "assistant", "content": response.content}
+            {"role": "assistant", "content": response}
         ]
     }
 
@@ -139,7 +142,7 @@ async def retrieve_agent(state: RAGState, *, store):
 
     # Call Qdrant
     response = await retrieveqdrant(user_query)
-
+    print(f"response: {response}")
     # Persist retrieved results
     await store.aput(
         ("qdrant_retrieval", user_id),
@@ -191,6 +194,7 @@ async def rag_process(request,user_id,session_id:Optional[str]=None):
         
 async def qa_process(request, user_id, session_id: Optional[str] = None):
     question = request.get("question")
+    print(f"question: {question}")
     async with (
         AsyncRedisStore.from_conn_string(REDIS_URI) as store,
         AsyncRedisSaver.from_conn_string(REDIS_URI) as checkpointer,

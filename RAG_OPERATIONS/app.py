@@ -3,7 +3,8 @@ import sys
 import asyncio
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
 from doc_graph import docgraph_processor
 import workflow_graph as workflow_graph
@@ -16,11 +17,12 @@ from fastapi import Request
 app=FastAPI()
 indexer=QdrantOps()
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     print("Initialising qdrant")
     await indexer.init_collection()
     print("Qdrant is ready")
+    yield
 
 @app.post("/dbsave")
 async def dbsave(request:Request):
@@ -81,4 +83,11 @@ async def rag_doc_proccess(request: Request):
     response=await docgraph_processor(user_id=user_id,session_id=session_id,file_ids=file_ids)
     return response
 
+@app.post("/qa_answer")
+async def qa_answer(request:Request):
+    data=await request.json()
+    user_id=data.get("user_id")
+    session_id=data.get("session_id")
+    result=await workflow_graph.qa_process(request=data, user_id=user_id,session_id=session_id)
+    return result
 
